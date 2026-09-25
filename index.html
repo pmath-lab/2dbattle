@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知識戰鬥 RPG</title>
+    <style>
+        :root {
+            --bg-sky: #87CEEB;
+            --panel-bg: #FFF9C4; /* 明亮的鵝黃色 */
+            --btn-bg: #4FC3F7;
+            --btn-hover: #29B6F6;
+            --text-main: #333333;
+            --health-green: #4CAF50;
+            --health-red: #EF5350;
+            --mana-blue: #03A9F4;
+            --accent-orange: #FF7043;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #E0F7FA;
+            color: var(--text-main);
+            font-family: 'Comic Sans MS', 'Chalkboard SE', '微軟正黑體', 'Varela Round', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 100vh;
+            max-height: 800px;
+            background-color: var(--bg-sky);
+            border-radius: 20px;
+            border: 8px solid #FFF;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #combat-area {
+            flex-grow: 1;
+            position: relative;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 25px;
+            background: rgba(255, 255, 255, 0.6);
+            border-bottom: 4px solid #FFF;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .stats {
+            color: var(--text-main);
+            font-size: 1.4rem;
+            font-weight: bold;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .wave-info {
+            color: var(--accent-orange);
+            font-size: 1.4rem;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        #control-panel {
+            display: flex;
+            flex-direction: column;
+            background-color: var(--panel-bg);
+            border-top: 6px solid #FFD54F;
+            height: 380px; /* 加大下方控制面板的高度，讓題目有更多空間 */
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        #summon-section {
+            flex: none;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            border-bottom: 4px dashed #FFD54F;
+            overflow-x: auto;
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .summon-btn {
+            background: var(--btn-bg);
+            border: 4px solid #0288D1;
+            border-radius: 16px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            width: 90px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 0 #0288D1;
+            pointer-events: auto; /* 確保UI層按鈕可以點擊 */
+        }
+
+        .summon-btn.disabled {
+            background: #B0BEC5;
+            border-color: #78909C;
+            box-shadow: 0 4px 0 #78909C;
+            opacity: 0.7;
+            cursor: not-allowed;
+            filter: grayscale(80%);
+        }
+
+        .summon-btn:not(.disabled):hover {
+            transform: translateY(-2px);
+            background: var(--btn-hover);
+        }
+        
+        .summon-btn:not(.disabled):active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #0288D1;
+        }
+
+        .summon-icon {
+            width: 45px;
+            height: 45px;
+            margin-bottom: 5px;
+            background-color: #555;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+
+        .summon-name {
+            font-size: 1rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+        }
+
+        .summon-cost {
+            color: #FFF;
+            background: #FF7043;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-top: 4px;
+            box-shadow: 0 2px 0 #D84315;
+        }
+
+        #question-section {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .question-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* 文字與輸入框並排的樣式 */
+        .question-text-inline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 5px 10px; /* 上下間距縮小為 5px，左右間距維持 10px */
+            font-size: 2rem;
+            color: var(--text-main);
+            font-weight: bold;
+            line-height: 1.6; /* 從 2.2 大幅縮小行距，讓上下行更貼合 */
+        }
+
+        /* 句子中間的填空框樣式 */
+        .inline-input {
+            font-size: 2rem;
+            padding: 0 15px;
+            border: none;
+            border-bottom: 6px solid var(--accent-orange);
+            background: rgba(255, 255, 255, 0.7);
+            color: #D84315;
+            width: 180px;
+            text-align: center;
+            outline: none;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 12px 12px 0 0;
+            transition: all 0.2s;
+            margin: 0; /* 確保沒有額外的外距影響排版 */
+        }
+
+        /* 句子中間的填空框樣式 */
+        .inline-input {
+            font-size: 2rem;
+            padding: 0 15px;
+            border: none;
+            border-bottom: 6px solid var(--accent-orange);
+            background: rgba(255, 255, 255, 0.7);
+            color: #D84315;
+            width: 180px;
+            text-align: center;
+            outline: none;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 12px 12px 0 0;
+            transition: all 0.2s;
+        }
+
+        .inline-input:focus {
+            border-bottom-color: var(--health-green);
+            background: #FFF;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.2);
+        }
+
+        .submit-btn {
+            background: var(--health-green);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-size: 1.4rem;
+            font-weight: bold;
+            padding: 8px 24px;
+            cursor: pointer;
+            transition: all 0.1s;
+            box-shadow: 0 5px 0 #388E3C;
+            margin-left: 10px;
+            font-family: inherit;
+        }
+
+        .submit-btn:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #388E3C;
+        }
+
+        /* 明亮的遮罩畫面 */
+        .overlay-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            pointer-events: auto;
+        }
+
+        .overlay-screen h1 {
+            font-size: 4rem;
+            color: var(--accent-orange);
+            text-shadow: 3px 3px 0 #FFF, 5px 5px 0 rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .overlay-screen p {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            text-align: center;
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        .start-btn {
+            background-color: var(--health-green);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 8px 0 #388E3C;
+            transition: transform 0.2s;
+            font-family: inherit;
+        }
+
+        .start-btn:hover {
+            transform: scale(1.05);
+            background-color: #66BB6A;
+        }
+        
+        .start-btn:active {
+            transform: translateY(8px) scale(1.05);
+            box-shadow: 0 0 0 #388E3C;
+        }
+
+        .hidden { display: none !important; }
+
+        .combat-msg {
+            position: absolute;
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            opacity: 1;
+            z-index: 50;
+            text-shadow: 2px 2px 0 #FFF, -1px -1px 0 #FFF, 1px -1px 0 #FFF, -1px 1px 0 #FFF;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-40px) scale(1.3); opacity: 0; }
+        }
+
+        .msg-damage { color: #E53935; }
+        .msg-heal { color: #43A047; }
+        .msg-mana { color: #0288D1; }
+        
+        #boss-warning {
+            position: absolute;
+            top: 25%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: #E53935;
+            font-size: 4rem;
+            font-weight: bold;
+            text-shadow: 3px 3px 0 #FFF, 0 0 20px #FFCDD2;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 200;
+            transform: scale(0.5);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #boss-warning.show {
+            opacity: 1;
+            transform: scale(1);
+            animation: pulseWarning 0.5s infinite alternate;
+        }
+        
+        /* 升級卡片亮色版 */
+        .upgrade-card {
+            background: linear-gradient(to bottom, #FFFFFF, #FFF9C4);
+            border: 6px solid #FFB74D;
+            border-radius: 20px;
+            padding: 25px 20px;
+            width: 240px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .upgrade-card:hover {
+            transform: translateY(-10px) scale(1.05);
+            box-shadow: 0 15px 30px rgba(255, 152, 0, 0.3);
+            border-color: var(--accent-orange);
+        }
+
+        .upgrade-icon-wrapper {
+            width: 80px;
+            height: 80px;
+            background: #FFF;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+            border: 4px solid #FFD54F;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .upgrade-title {
+            font-size: 1.6rem;
+            font-weight: bold;
+            color: var(--accent-orange);
+            margin-bottom: 15px;
+        }
+
+        .upgrade-desc {
+            font-size: 1.2rem;
+            color: var(--text-main);
+            text-align: center;
+            line-height: 1.5;
+            background: rgba(255, 183, 77, 0.2);
+            padding: 12px;
+            border-radius: 12px;
+            width: 100%;
+            font-weight: bold;
+        }
+
+        .stat-highlight {
+            color: #388E3C;
+            font-weight: bold;
+            font-size: 1.4rem;
+        }
+
+        .boss-hp-container {
+            position: absolute;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 35px;
+            background: #FFF;
+            border: 4px solid #D32F2F;
+            border-radius: 20px;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .boss-hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #EF5350, #C62828);
+            width: 100%;
+            transition: width 0.1s;
+        }
+
+        .boss-hp-text {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        @keyframes pulseWarning {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.1); color: #B71C1C;}
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <div id="start-screen" class="overlay-screen">
+            <h1>知識戰鬥 RPG</h1>
+            <p>答題獲得魔力，召喚戰士抵禦無盡的敵人！<br>摧毀敵方主堡以獲取勝利與裝備升級。</p>
+            <button class="start-btn" onclick="startGame()">開始戰鬥</button>
+        </div>
+
+        <div id="game-over-screen" class="overlay-screen hidden">
+            <h1 id="end-title">防線崩潰</h1>
+            <p id="end-stats">你守住了 0 波，答對 0 題！</p>
+            <button class="start-btn" onclick="startGame()">再次挑戰</button>
+        </div>
+
+        <!-- 升級選擇畫面 -->
+        <div id="upgrade-screen" class="overlay-screen hidden">
+            <h1>戰鬥勝利！</h1>
+            <p style="color: #666;">選擇一項裝備升級你的戰士部隊</p>
+            <div id="upgrade-choices" style="display: flex; gap: 30px; flex-wrap: wrap; justify-content: center;">
+                <!-- 升級卡片將由 JS 動態生成 -->
+            </div>
+        </div>
+
+        <div id="combat-area">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="ui-layer">
+                <div class="top-bar">
+                    <div class="stats">
+                        <span style="color:var(--health-green)">我方主堡: <span id="base-hp">500</span></span>
+                        <span style="color:var(--health-red); margin-left: 15px;">敵方主堡: <span id="enemy-base-hp">500</span></span>
+                        <span style="margin-left: 15px; display: flex; align-items: center;">魔石: <span id="mana-text" style="color: #9C27B0; font-size: 1.8rem; font-weight: bold; margin-left: 5px;">0</span> <span style="font-size: 1.5rem; margin-left: 5px;">💎</span></span>
+                    </div>
+                    <div class="wave-info">
+                        波數: <span id="wave-num">1</span><br>
+                    </div>
+                </div>
+                
+                <div id="boss-hp-bar" class="boss-hp-container">
+                    <div id="boss-hp-fill" class="boss-hp-fill"></div>
+                    <div class="boss-hp-text"><span id="boss-name-display">Boss</span> <span id="boss-hp-text">1000/1000</span></div>
+                </div>
+                
+                <div id="boss-warning">WARNING!<br><span style="font-size: 2.5rem;">強大生命體接近中</span></div>
+            </div>
+        </div>
+
+        <div id="control-panel">
+            <div id="summon-section">
+                <!-- Buttons will be generated by JS -->
+            </div>
+
+            <div id="question-section">
+                <!-- 題目與輸入框將透過 JS 結合渲染 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const combatArea = document.getElementById('combat-area');
+
+        // UI Elements (移除了被刪除的 questionText 與 answerInput 以防報錯)
+        const baseHpDisplay = document.getElementById('base-hp');
+        const enemyBaseHpDisplay = document.getElementById('enemy-base-hp');
+        const manaTextDisplay = document.getElementById('mana-text');
+        const waveDisplay = document.getElementById('wave-num');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const endStats = document.getElementById('end-stats');
+        const summonSection = document.getElementById('summon-section');
+        
+        // Upgrade UI
+        const upgradeScreen = document.getElementById('upgrade-screen');
+        const upgradeChoicesContainer = document.getElementById('upgrade-choices');
+        
+        // Boss UI
+        const bossWarning = document.getElementById('boss-warning');
+        const bossHpBarContainer = document.getElementById('boss-hp-bar');
+        const bossHpFill = document.getElementById('boss-hp-fill');
+        const bossHpText = document.getElementById('boss-hp-text');
+        const bossNameDisplay = document.getElementById('boss-name-display');
+
+        let gameState = 'START';
+        let wave = 1;
+        let score = 0;
+        let mana = 0;
+        const baseMaxHp = 500;
+        let baseHp = baseMaxHp;
+        
+        let enemyBaseMaxHp = 500;
+        let enemyBaseHp = enemyBaseMaxHp;
+        let isWaveClearing = false;
+        
+        let hasHinted = false; 
+        let wrongAttempts = 0; // 新增：紀錄答錯次數
+        let lightWaveEffect = 0; 
+        let baseThresholds = { 80: false, 60: false, 40: false }; 
+        let currentQuestion = {};
+        let animationId;
+        let lastTime = 0;
+        let particles = [];
+        
+        let entities = []; // All characters on screen
+        let spawnTimer = 0;
+        let isBossWave = false;
+        let currentBoss = null;
+        let bossTriggered = false;
+        let waveTimer = 0;
+        
+        let questionBank = []; // 用來存放從 GAS 取得的題庫
+        let currentQuestionIndex = 0;
+
+        // =========================================================================
+        // GAS (Google Apps Script) 網址設定區
+        // =========================================================================
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbyGmEpc0rCFuhpx6R6tWZ7Avrak055Jk8YWvWnsivxzWwNPqMOEOW6izX4GDQFsWUAcag/exec'; 
+
+        // Base Classes Definition (降低了魔石消耗)
+        const INITIAL_CLASSES = {
+            'swordsman': { name: '劍士', cost: 2, hp: 50, dmg: 10, range: 40, speed: 40, atkSpeed: 1000, color: '#e67e22', size: 1.0, isHealer: false, iconStyle: 'rect' },
+            'defender': { name: '盾戰', cost: 3, hp: 120, dmg: 4, range: 35, speed: 25, atkSpeed: 1500, color: '#7f8c8d', size: 1.2, isHealer: false, iconStyle: 'shield' },
+            'archer': { name: '弓手', cost: 4, hp: 30, dmg: 8, range: 150, speed: 45, atkSpeed: 600, color: '#27ae60', size: 0.9, isHealer: false, iconStyle: 'triangle' },
+            'cleric': { name: '牧師', cost: 6, hp: 40, dmg: 15, range: 100, speed: 35, atkSpeed: 2000, color: '#f1c40f', size: 0.9, isHealer: true, iconStyle: 'circle' },
+            'mage': { name: '法師', cost: 8, hp: 35, dmg: 20, range: 120, speed: 30, atkSpeed: 1800, color: '#9b59b6', size: 1.0, isHealer: false, isAoE: true, aoeRadius: 80, iconStyle: 'rect' }
+        };
+
+        let CLASSES = JSON.parse(JSON.stringify(INITIAL_CLASSES));
+
+        // Available upgrade types (魔石消耗升級改為 -1)
+        const UPGRADE_TYPES = [
+            { stat: 'hp', name: '最大生命', generateVal: (base) => Math.floor(base * 0.3) + 15, prefix: '+', suffix: '' },
+            { stat: 'dmg', name: '攻擊力', generateVal: (base) => Math.floor(base * 0.25) + 5, prefix: '+', suffix: '' },
+            { stat: 'atkSpeed', name: '攻擊頻率', generateVal: (base) => -150, prefix: '', suffix: ' (更快)' }, 
+            { stat: 'speed', name: '移動速度', generateVal: (base) => 10, prefix: '+', suffix: '' },
+            { stat: 'cost', name: '魔石消耗', generateVal: (base) => -1, minLimit: 1, prefix: '', suffix: ' 點' }
+        ];
+
+        // 降低敵人跑速，配合填充題
+        const ENEMY_TYPES = [
+            { name: '哥布林', hp: 30, dmg: 5, range: 40, speed: 18, atkSpeed: 1000, color: '#2ecc71', size: 0.8, isBoss: false },
+            { name: '獸人', hp: 80, dmg: 12, range: 40, speed: 12, atkSpeed: 1200, color: '#16a085', size: 1.1, isBoss: false },
+            { name: '食人魔', hp: 200, dmg: 25, range: 50, speed: 8, atkSpeed: 2500, color: '#8e44ad', size: 1.5, isBoss: false }
+        ];
+        
+        const BOSS_TYPES = [
+            { 
+                name: '【惡魔 - 阿爾法】', 
+                hp: 800, 
+                dmg: 30, 
+                range: 80, 
+                speed: 6, 
+                atkSpeed: 3000, 
+                color: '#c0392b', 
+                size: 3.5, 
+                isBoss: true
+            }
+        ];
+
+        function resizeCanvas() {
+            canvas.width = combatArea.clientWidth;
+            canvas.height = combatArea.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        class Entity {
+            constructor(x, y, team, config) {
+                this.x = x;
+                this.y = y;
+                this.team = team; // 0 for ally, 1 for enemy
+                this.config = config;
+                
+                this.maxHp = config.hp * (team === 1 ? (1 + (wave-1)*0.2) : 1); 
+                this.hp = this.maxHp;
+                this.dmg = config.dmg * (team === 1 ? (1 + (wave-1)*0.1) : 1);
+                
+                this.width = 30 * (config.size || 1);
+                this.height = 40 * (config.size || 1);
+                this.range = config.range;
+                this.speed = config.speed;
+                this.atkSpeed = config.atkSpeed;
+                this.isHealer = config.isHealer || false;
+                this.isBoss = config.isBoss || false;
+                
+                this.state = 'walk'; 
+                this.attackTimer = 0;
+                this.skillTimer = config.skillCooldown || 0;
+                this.target = null;
+                this.stunTimer = 0; // 眩暈計時器
+                
+                this.color = config.color;
+                this.shakeAmount = 0;
+            }
+
+            draw(ctx) {
+                if (this.state === 'dead') return;
+
+                let drawX = this.x;
+                let drawY = this.y;
+
+                if (this.shakeAmount > 0) {
+                    drawX += (Math.random() - 0.5) * this.shakeAmount;
+                    drawY += (Math.random() - 0.5) * this.shakeAmount;
+                    this.shakeAmount -= 1;
+                }
+
+                ctx.save();
+                ctx.translate(drawX, drawY);
+                
+                if (this.isBoss && this.state !== 'dead') {
+                    ctx.beginPath();
+                    ctx.ellipse(0, this.height/2, this.width, 15, 0, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                    ctx.fill();
+                    ctx.shadowColor = '#ff0000';
+                    ctx.shadowBlur = 20;
+                }
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.ellipse(0, this.height/2, this.width/1.5, 8, 0, 0, Math.PI*2);
+                ctx.fill();
+
+                // Body
+                ctx.fillStyle = this.color;
+                
+                if (this.config.iconStyle === 'shield') {
+                    ctx.beginPath();
+                    ctx.moveTo(-this.width/2, -this.height/2);
+                    ctx.lineTo(this.width/2, -this.height/2);
+                    ctx.lineTo(this.width/2, this.height/4);
+                    ctx.lineTo(0, this.height/2);
+                    ctx.lineTo(-this.width/2, this.height/4);
+                    ctx.fill();
+                } else if (this.config.iconStyle === 'triangle') {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -this.height/2);
+                    ctx.lineTo(this.width/2, this.height/2);
+                    ctx.lineTo(-this.width/2, this.height/2);
+                    ctx.fill();
+                } else if (this.config.iconStyle === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.width/2, 0, Math.PI*2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                }
+
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = this.team === 0 ? '#3498db' : '#e74c3c';
+                ctx.strokeRect(-this.width/2, -this.height/2, this.width, this.height);
+                
+                if(this.isBoss) {
+                    ctx.shadowBlur = 0;
+                }
+
+                // Health Bar
+                if (!this.isBoss) {
+                    const hpPercent = this.hp / this.maxHp;
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(-this.width/2, -this.height/2 - 15, this.width, 5);
+                    ctx.fillStyle = hpPercent > 0.5 ? '#2ecc71' : (hpPercent > 0.2 ? '#f1c40f' : '#e74c3c');
+                    ctx.fillRect(-this.width/2, -this.height/2 - 15, this.width * hpPercent, 5);
+                }
+
+                // 眩暈特效
+                if (this.stunTimer > 0 && this.state !== 'dead') {
+                    ctx.font = '24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('💫', 0, -this.height/2 - 25);
+                }
+
+                ctx.restore();
+                
+                if (this.state === 'attack' && this.target && this.attackTimer > this.atkSpeed - 150) {
+                    this.drawAttackEffect(ctx);
+                }
+            }
+            
+            drawAttackEffect(ctx) {
+                if(this.range <= 50) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    let dir = this.team === 0 ? 1 : -1;
+                    ctx.arc(this.x + (this.width/2 * dir), this.y, 20, -Math.PI/4, Math.PI/4);
+                    ctx.stroke();
+                } else {
+                    ctx.strokeStyle = this.isHealer ? '#2ecc71' : (this.team === 0 ? '#3498db' : '#e74c3c');
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    let targetX = this.target ? this.target.x : (this.team === 0 ? canvas.width - 50 : 50);
+                    let targetY = this.target ? this.target.y : this.y;
+                    ctx.lineTo(targetX, targetY);
+                    ctx.stroke();
+                }
+            }
+
+            update(deltaTime) {
+                if (this.state === 'dead') return;
+                
+                if (this.stunTimer > 0) {
+                    this.stunTimer -= deltaTime;
+                    return; // 眩暈時停止所有動作
+                }
+
+                if (this.attackTimer > 0) {
+                    this.attackTimer -= deltaTime;
+                }
+                
+                if (this.isBoss && this.skillTimer > 0) {
+                    this.skillTimer -= deltaTime;
+                    if (this.skillTimer <= 0) {
+                        this.useSpecialSkill();
+                    }
+                }
+
+                this.findTarget();
+
+                if (this.target) {
+                    let dx = this.target.x - this.x;
+                    let dy = this.target.y - this.y;
+                    let dist = Math.hypot(dx, dy);
+
+                    if (dist <= this.range) {
+                        this.state = 'attack';
+                        if (this.attackTimer <= 0) {
+                            this.performAttack();
+                        }
+                    } else {
+                        this.state = 'walk';
+                        let moveX = (dx / dist) * this.speed * (deltaTime / 1000);
+                        let moveY = (dy / dist) * this.speed * (deltaTime / 1000);
+                        
+                        let nextX = this.x + moveX;
+                        this.x = Math.max(50, Math.min(canvas.width - 50, nextX));
+                        this.y += moveY;
+                        
+                        if(!this.isBoss) {
+                            let minLane = canvas.height * 0.4;
+                            let maxLane = canvas.height * 0.9;
+                            this.y = Math.max(minLane, Math.min(maxLane, this.y));
+                        }
+                    }
+                } else {
+                    if (this.team === 0) {
+                        if (this.isHealer) {
+                            let distToBase = (canvas.width - 50) - this.x;
+                            if (distToBase > 150) {
+                                this.state = 'walk';
+                                this.x += this.speed * (deltaTime / 1000);
+                            } else {
+                                this.state = 'walk'; 
+                            }
+                        } else {
+                            let distToBase = (canvas.width - 50) - this.x;
+                            if (distToBase <= this.range) {
+                                this.state = 'attack';
+                                if (this.attackTimer <= 0) {
+                                    this.attackEnemyBase();
+                                }
+                            } else {
+                                this.state = 'walk';
+                                this.x += this.speed * (deltaTime / 1000);
+                            }
+                        }
+                    } else {
+                        let distToBase = this.x - 100;
+                        if (distToBase <= this.range) {
+                            this.state = 'attack';
+                            if (this.attackTimer <= 0) {
+                                this.attackBase();
+                            }
+                        } else {
+                            this.state = 'walk';
+                            this.x -= this.speed * (deltaTime / 1000);
+                        }
+                    }
+                }
+            }
+
+            findTarget() {
+                if (this.target && this.target.state === 'dead') {
+                    this.target = null;
+                }
+
+                if (!this.target) {
+                    let possibleTargets = entities.filter(e => e.state !== 'dead');
+                    
+                    if (this.isHealer) {
+                        let allies = possibleTargets.filter(e => e.team === this.team && e !== this && e.hp < e.maxHp);
+                        if (allies.length > 0) {
+                            allies.sort((a, b) => (a.hp/a.maxHp) - (b.hp/b.maxHp));
+                            this.target = allies[0];
+                        }
+                    } else {
+                        let enemies = possibleTargets.filter(e => e.team !== this.team);
+                        let closestDist = Infinity;
+                        
+                        enemies.forEach(enemy => {
+                            let dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+                            if (dist < closestDist) {
+                                closestDist = dist;
+                                this.target = enemy;
+                            }
+                        });
+                    }
+                }
+            }
+
+            performAttack() {
+                this.attackTimer = this.atkSpeed;
+                
+                if (this.isHealer) {
+                    let healAmount = Math.abs(this.dmg);
+                    this.target.heal(healAmount);
+                    createParticleExplosion(this.target.x, this.target.y, '#2ecc71', 5);
+                } else if (this.config.isAoE) {
+                    let targetX = this.target.x;
+                    let targetY = this.target.y;
+                    createParticleExplosion(targetX, targetY, this.color, 15);
+                    entities.forEach(e => {
+                        if (e.team !== this.team && e.state !== 'dead') {
+                            if (Math.hypot(e.x - targetX, e.y - targetY) <= this.config.aoeRadius) {
+                                e.takeDamage(this.dmg);
+                            }
+                        }
+                    });
+                } else {
+                    this.target.takeDamage(this.dmg);
+                    createParticleExplosion(this.target.x, this.target.y, '#e74c3c', 5);
+                }
+            }
+
+            takeDamage(amount) {
+                if (this.state === 'dead') return;
+                this.hp -= amount;
+                this.shakeAmount = 5;
+                createDamageText(this.x, this.y - this.height, `-${Math.ceil(amount)}`, 'msg-damage');
+                
+                if (this.isBoss) {
+                    updateBossUI();
+                }
+
+                if (this.hp <= 0) {
+                    this.die();
+                }
+            }
+            
+            heal(amount) {
+                if (this.state === 'dead') return;
+                this.hp = Math.min(this.maxHp, this.hp + amount);
+                createDamageText(this.x, this.y - this.height, `+${Math.ceil(amount)}`, 'msg-heal');
+            }
+
+            die() {
+                this.hp = 0;
+                this.state = 'dead';
+                
+                if (this.isBoss) {
+                    createParticleExplosion(this.x, this.y, '#ff0000', 50); 
+                    bossHpBarContainer.style.display = 'none';
+                    currentBoss = null;
+                    
+                    addMana(20); // 降低 Boss 擊殺獲得的魔石
+                    createDamageText(canvas.width/2, canvas.height/2, 'BOSS DEFEATED!', 'msg-heal');
+                    
+                    setTimeout(() => {
+                        triggerWaveClear();
+                    }, 1500);
+                } else {
+                    createParticleExplosion(this.x, this.y, this.team === 0 ? '#3498db' : '#95a5a6', 15);
+                }
+            }
+            
+            useSpecialSkill() {
+                if (this.config.specialSkill === 'summon_minions') {
+                    createDamageText(this.x, this.y - this.height - 20, '惡魔咆哮!', 'msg-damage');
+                    createParticleExplosion(this.x, this.y, '#c0392b', 30);
+                    this.skillTimer = this.config.skillCooldown; 
+                }
+            }
+            
+            attackBase() {
+                if (this.attackTimer <= 0) {
+                    let oldHpPercent = (baseHp / baseMaxHp) * 100;
+                    baseHp -= this.dmg;
+                    let newHpPercent = (baseHp / baseMaxHp) * 100;
+                    
+                    this.attackTimer = this.atkSpeed;
+                    createDamageText(100, this.y - this.height, `-${Math.ceil(this.dmg)}`, 'msg-damage');
+                    updateBaseHpUI();
+                    
+                    checkBaseThresholds(oldHpPercent, newHpPercent);
+                    
+                    if (baseHp <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+
+            attackEnemyBase() {
+                if (enemyBaseHp > 0) {
+                    enemyBaseHp -= this.dmg;
+                    
+                    // 如果是 Boss 關卡，主堡強制留 1 滴血；如果不是，歸零並直接獲勝
+                    if (isBossWave && enemyBaseHp <= 1) {
+                        enemyBaseHp = 1;
+                    } else if (!isBossWave && enemyBaseHp <= 0) {
+                        enemyBaseHp = 0;
+                        if (!isWaveClearing) triggerWaveClear();
+                    }
+                }
+                this.attackTimer = this.atkSpeed;
+                createDamageText(canvas.width - 100, this.y - this.height, `-${Math.ceil(this.dmg)}`, 'msg-damage'); 
+                updateEnemyBaseHpUI();
+            }
+        }
+
+        function createParticle(x, y, color) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                life: 1.0,
+                color: color
+            });
+        }
+
+        function createParticleExplosion(x, y, color, count = 10) {
+            for(let i=0; i<count; i++) {
+                createParticle(x, y + (Math.random()*20 - 10), color);
+            }
+        }
+
+        function createDamageText(x, y, text, className) {
+            const el = document.createElement('div');
+            el.className = `combat-msg ${className}`;
+            el.innerText = text;
+            
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = rect.width / canvas.width;
+            const scaleY = rect.height / canvas.height;
+            
+            el.style.left = `${(x * scaleX) + rect.left}px`;
+            el.style.top = `${(y * scaleY) + rect.top}px`;
+            
+            document.body.appendChild(el);
+
+            setTimeout(() => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }, 1000);
+        }
+
+        async function fetchQuestionsFromGAS() {
+            if (!GAS_URL || GAS_URL.includes('請把複製的網址貼在引號裡面')) {
+                console.log("未設定 GAS 網址，將使用內建隨機題庫。");
+                return;
+            }
+            try {
+                const qSection = document.getElementById('question-section');
+                if(qSection) {
+                    qSection.innerHTML = `<div style="font-size: 1.5rem; font-weight: bold; color: var(--text-main);">連線讀取題庫中...</div>`;
+                }
+                
+                const response = await fetch(GAS_URL);
+                if (!response.ok) {
+                    throw new Error(`伺服器回應錯誤 (狀態碼: ${response.status})`);
+                }
+                
+                // 為了防呆，先以文字方式讀取，確認是不是被 Google 導向登入畫面 (HTML)
+                const textData = await response.text();
+                
+                if (textData.includes('<!DOCTYPE html>') || textData.includes('<html')) {
+                    throw new Error("權限錯誤：被 Google 擋下了。請重新發佈並將權限設為「所有人」。");
+                }
+                
+                let data;
+                try {
+                    data = JSON.parse(textData);
+                } catch (e) {
+                    throw new Error("格式錯誤：回傳的資料不是 JSON，請檢查程式碼是否貼對。");
+                }
+                
+                if (data && data.length > 0) {
+                    questionBank = data.sort(() => Math.random() - 0.5); 
+                    console.log("成功載入題庫，共 " + questionBank.length + " 題");
+                    
+                    if(qSection && gameState === 'START') {
+                       qSection.innerHTML = `<div style="font-size: 1.2rem; font-weight: bold; color: #4CAF50;">題庫載入完成！共讀取 ${questionBank.length} 題。<br>請點擊上方開始戰鬥。</div>`;
+                    }
+                } else {
+                    throw new Error("讀取成功，但 Excel 裡面是空的 (請檢查資料格式是否為 ABC 三欄)");
+                }
+            } catch (error) {
+                console.error("讀取題庫失敗，將使用內建隨機題庫:", error);
+                const qSection = document.getElementById('question-section');
+                if(qSection && gameState === 'START') {
+                    qSection.innerHTML = `
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #D32F2F; text-align: center;">
+                            連線失敗，將使用備用題庫。<br>
+                            <span style="font-size: 1rem; color: #1565C0;">錯誤原因: ${error.message}</span>
+                        </div>`;
+                }
+            }
+        }
+        
+        function getAvailableClassKeys(currentWave) {
+            let availableKeys = [];
+            if (currentWave >= 1) availableKeys.push('swordsman');
+            if (currentWave >= 2) availableKeys.push('defender', 'archer');
+            if (currentWave >= 3) availableKeys.push('cleric');
+            if (currentWave >= 4) availableKeys = Object.keys(CLASSES); 
+            return availableKeys;
+        }
+
+        function generateQuestion() {
+            // 直接在這裡清空輸入框，避免找不到 clearInput 函數的錯誤
+            const answerInput = document.getElementById('answer-input');
+            if(answerInput) answerInput.value = "";
+
+            hasHinted = false; 
+            wrongAttempts = 0; // 新題目重置答錯次數
+            
+            if (questionBank.length > 0) {
+                if (currentQuestionIndex >= questionBank.length) {
+                    currentQuestionIndex = 0;
+                    questionBank.sort(() => Math.random() - 0.5); 
+                }
+                
+                let qData = questionBank[currentQuestionIndex];
+                currentQuestion = {
+                    text: qData.q,
+                    answer: String(qData.a).trim() 
+                };
+                currentQuestionIndex++;
+                updateQuestionUI();
+            } else {
+                // 如果沒有讀取到 Excel 題庫，則永遠顯示讀取中，絕對不出備用題目
+                const qSection = document.getElementById('question-section');
+                if (qSection) {
+                    qSection.innerHTML = `<div style="font-size: 1.5rem; font-weight: bold; color: var(--text-main);">題目讀取中... 或連線失敗，請檢查設定。</div>`;
+                }
+            }
+        }
+
+        function updateQuestionUI() {
+            const qSection = document.getElementById('question-section');
+            let text = currentQuestion.text;
+
+            // 帶有上方提示文字的輸入框結構，調整 margin 讓它在行內更緊湊
+            const inputHTML = `
+                <div style="position: relative; display: inline-block; margin: 0 5px;">
+                    <div id="hint-display" style="position: absolute; top: -30px; left: 0; width: 100%; text-align: center; font-size: 1.2rem; color: #E53935; font-weight: bold; opacity: 0; pointer-events: none; transition: opacity 0.3s; white-space: nowrap; text-shadow: 1px 1px 0 #FFF, -1px -1px 0 #FFF, 1px -1px 0 #FFF, -1px 1px 0 #FFF;"></div>
+                    <input type="text" id="answer-input" class="inline-input" autocomplete="off" placeholder="?">
+                </div>
+            `;
+
+            if (text.match(/_{2,}/)) {
+                let parts = text.split(/_{2,}/);
+                qSection.innerHTML = `
+                    <div class="question-container">
+                        <div class="question-text-inline">
+                            <span>${parts[0]}</span>
+                            ${inputHTML}
+                            <span>${parts[1] || ''}</span>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <button class="submit-btn" id="submit-btn" onclick="submitAnswer()">確定</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                qSection.innerHTML = `
+                    <div class="question-container">
+                        <div class="question-text-inline">
+                            <span>${text}</span>
+                            ${inputHTML}
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <button class="submit-btn" id="submit-btn" onclick="submitAnswer()">確定</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const answerInput = document.getElementById('answer-input');
+            if (gameState === 'PLAYING') {
+                answerInput.focus();
+            }
+            answerInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    submitAnswer();
+                }
+            });
+        }
+
+        function clearInput() {
+            const answerInput = document.getElementById('answer-input');
+            if(answerInput) answerInput.value = "";
+        }
+
+        function submitAnswer() {
+            if (gameState !== 'PLAYING') return;
+            
+            const answerInput = document.getElementById('answer-input');
+            const submitBtn = document.getElementById('submit-btn');
+            if (!answerInput) return;
+
+            const playerAnswer = answerInput.value.trim();
+            if (playerAnswer === "") return;
+
+            const isCorrect = playerAnswer.toLowerCase() === currentQuestion.answer.trim().toLowerCase();
+
+            if (isCorrect) {
+                score++;
+                if (hasHinted) {
+                    addMana(1); 
+                    createDamageText(canvas.width/2, canvas.height - 300, '+1 💎', 'msg-mana');
+                } else {
+                    addMana(2); 
+                    createDamageText(canvas.width/2, canvas.height - 300, '+2 💎', 'msg-mana');
+                }
+                
+                answerInput.style.color = '#388E3C';
+                answerInput.style.borderBottomColor = '#4CAF50';
+                answerInput.style.backgroundColor = '#E8F5E9';
+                
+                // 隱藏提示文字
+                const hintDisplay = document.getElementById('hint-display');
+                if (hintDisplay) hintDisplay.style.opacity = '0';
+
+                setTimeout(() => {
+                    generateQuestion();
+                }, 300);
+                
+            } else {
+                hasHinted = true; 
+                wrongAttempts++; // 增加錯誤次數
+                
+                const hintDisplay = document.getElementById('hint-display');
+                
+                if (wrongAttempts >= 3) {
+                    // 答錯 3 次：顯示答案並鎖定 3 秒
+                    answerInput.value = currentQuestion.answer.trim();
+                    answerInput.style.color = '#1565C0'; // 藍色字體表示系統給予的答案
+                    answerInput.style.borderBottomColor = '#1976D2';
+                    answerInput.style.backgroundColor = '#E3F2FD';
+                    answerInput.disabled = true; // 鎖定輸入框
+                    if(submitBtn) submitBtn.disabled = true;
+                    
+                    if (hintDisplay) {
+                        hintDisplay.innerText = "正確答案";
+                        hintDisplay.style.color = '#1976D2';
+                        hintDisplay.style.opacity = '1';
+                    }
+                    
+                    createDamageText(canvas.width/2, canvas.height - 200, '顯示正確答案', 'msg-mana');
+                    
+                    // 停頓 3 秒後自動換下一題
+                    setTimeout(() => {
+                        generateQuestion();
+                    }, 3000);
+                    
+                } else {
+                    // 答錯 1~2 次：給予提示並震動，同時計算部分答對的文字
+                    const correctAnswer = currentQuestion.answer.trim();
+                    const lowerPlayer = playerAnswer.toLowerCase();
+                    const lowerCorrect = correctAnswer.toLowerCase();
+                    
+                    let hintText = "";
+                    let matchCount = 0;
+                    
+                    // 逐字比對，正確顯示該字，錯誤顯示全形底線
+                    for(let i = 0; i < correctAnswer.length; i++) {
+                        if (i < lowerPlayer.length && lowerPlayer[i] === lowerCorrect[i]) {
+                            hintText += correctAnswer[i];
+                            matchCount++;
+                        } else {
+                            hintText += "＿"; // 使用全形底線佔位，視覺與中文字寬度完美對齊
+                        }
+                    }
+                    
+                    if (hintDisplay) {
+                        if (matchCount > 0) {
+                            // 有部分答對，顯示局部精準提示
+                            hintDisplay.innerText = `提示：${hintText}`;
+                        } else {
+                            // 完全沒有字眼對上，只顯示字數
+                            hintDisplay.innerText = `提示：${correctAnswer.length} 個字`;
+                        }
+                        hintDisplay.style.opacity = '1';
+                    }
+                    
+                    createDamageText(canvas.width/2, canvas.height - 300, `錯誤！`, 'msg-damage');
+                    
+                    answerInput.style.color = '#D32F2F';
+                    answerInput.style.borderBottomColor = '#F44336';
+                    answerInput.style.backgroundColor = '#FFEBEE';
+                    
+                    answerInput.style.transform = 'translateX(-8px)';
+                    setTimeout(() => answerInput.style.transform = 'translateX(8px)', 50);
+                    setTimeout(() => answerInput.style.transform = 'translateX(-8px)', 100);
+                    setTimeout(() => answerInput.style.transform = 'translateX(0)', 150);
+
+                    setTimeout(() => {
+                        answerInput.style.color = '#D84315';
+                        answerInput.style.borderBottomColor = 'var(--accent-orange)';
+                        answerInput.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+                        // 保留學生剛剛輸入的完整文字，讓他們可以直接修改錯字而不必全部重打
+                        answerInput.value = playerAnswer; 
+                        answerInput.focus();
+                    }, 400);
+                }
+            }
+        }
+
+        function initSummonButtons() {
+            summonSection.innerHTML = '';
+            
+            let availableKeys = getAvailableClassKeys(wave);
+
+            for (const key of availableKeys) {
+                const cls = CLASSES[key];
+                const btn = document.createElement('div');
+                btn.className = 'summon-btn';
+                btn.id = `summon-${key}`;
+                btn.onclick = () => summonAlly(key);
+                
+                let iconHtml = `<div class="summon-icon" style="background-color:${cls.color};"></div>`;
+                if(cls.iconStyle === 'shield') iconHtml = `<div class="summon-icon" style="background-color:transparent; border-bottom: 20px solid ${cls.color}; border-left: 15px solid transparent; border-right: 15px solid transparent;"></div>`;
+                if(cls.iconStyle === 'triangle') iconHtml = `<div class="summon-icon" style="background-color:transparent; border-bottom: 30px solid ${cls.color}; border-left: 15px solid transparent; border-right: 15px solid transparent;"></div>`;
+
+                btn.innerHTML = `
+                    ${iconHtml}
+                    <div class="summon-name">${cls.name}</div>
+                    <div class="summon-cost"><span class="mana-cost-tag">${cls.cost} 💎</span></div>
+                `;
+                summonSection.appendChild(btn);
+            }
+            updateSummonButtonsUI();
+        }
+
+        function addMana(amount) {
+            mana = Math.max(0, mana + amount); // 移除上限
+            updateManaUI();
+            updateSummonButtonsUI();
+        }
+
+        function updateManaUI() {
+            manaTextDisplay.innerText = Math.floor(mana);
+        }
+
+        function updateSummonButtonsUI() {
+            for (const [key, cls] of Object.entries(CLASSES)) {
+                const btn = document.getElementById(`summon-${key}`);
+                if (btn) {
+                    if (mana >= cls.cost) {
+                        btn.classList.remove('disabled');
+                    } else {
+                        btn.classList.add('disabled');
+                    }
+                }
+            }
+        }
+
+        function summonAlly(classKey) {
+            const cls = CLASSES[classKey];
+            if (mana >= cls.cost) {
+                addMana(-cls.cost);
+                
+                let spawnY = (canvas.height * 0.75) + (Math.random() * 10 - 5);
+                let ally = new Entity(100, spawnY, 0, cls); 
+                entities.push(ally);
+                
+                createParticleExplosion(ally.x, ally.y, '#3498db', 20);
+                
+                // Keep focus on input after summoning
+                const answerInput = document.getElementById('answer-input');
+                if (answerInput) answerInput.focus();
+            }
+        }
+        
+        function updateBossUI() {
+            if (!currentBoss || currentBoss.state === 'dead') {
+                bossHpBarContainer.style.display = 'none';
+                return;
+            }
+            
+            bossHpBarContainer.style.display = 'block';
+            let hpPercent = Math.max(0, currentBoss.hp / currentBoss.maxHp);
+            bossHpFill.style.width = `${hpPercent * 100}%`;
+            bossHpText.innerText = `${Math.ceil(currentBoss.hp)} / ${Math.ceil(currentBoss.maxHp)}`;
+            bossNameDisplay.innerText = currentBoss.config.name;
+        }
+
+        function startWave() {
+            isWaveClearing = false;
+            waveDisplay.innerText = wave;
+            
+            isBossWave = (wave >= 3); // 前兩關不產生 Boss，第 3 關開始才有
+            bossTriggered = false;
+            waveTimer = 0;
+            
+            baseThresholds = { 80: false, 60: false, 40: false }; // 重置每波的守護光波門檻
+
+            if (isBossWave) {
+                enemyBaseMaxHp = 500 * (1 + (wave - 3) * 0.5); // 第 3 關起血量提升
+            } else {
+                enemyBaseMaxHp = 100; // 第 1~2 關的敵方主堡血量只有 100
+            }
+            
+            enemyBaseHp = enemyBaseMaxHp;
+            updateEnemyBaseHpUI();
+            
+            baseHp = baseMaxHp;
+            updateBaseHpUI();
+        }
+
+        function triggerBossArrival() {
+            combatArea.style.backgroundColor = 'rgba(50, 0, 0, 0.8)';
+            bossWarning.classList.add('show');
+            
+            setTimeout(() => {
+                bossWarning.classList.remove('show');
+                if (!isWaveClearing && gameState === 'PLAYING') {
+                    spawnBoss();
+                }
+            }, 3000);
+        }
+
+        function checkBaseThresholds(oldPercent, newPercent) {
+            let triggered = false;
+            if (oldPercent >= 80 && newPercent < 80 && !baseThresholds[80]) { baseThresholds[80] = true; triggered = true; }
+            if (oldPercent >= 60 && newPercent < 60 && !baseThresholds[60]) { baseThresholds[60] = true; triggered = true; }
+            if (oldPercent >= 40 && newPercent < 40 && !baseThresholds[40]) { baseThresholds[40] = true; triggered = true; }
+
+            if (triggered) {
+                triggerLightWave();
+            }
+        }
+
+        function triggerLightWave() {
+            lightWaveEffect = 1000; 
+            createDamageText(200, canvas.height/2, '主堡守護光波！', 'msg-mana');
+
+            entities.forEach(e => {
+                if (e.team === 1 && e.state !== 'dead') {
+                    if (e.isBoss) {
+                        e.stunTimer = 10000; // Boss 暈眩 10 秒
+                        createDamageText(e.x, e.y - e.height - 20, '眩暈！', 'msg-damage');
+                    } else {
+                        e.die(); // 瞬間消滅小怪
+                    }
+                }
+            });
+        }
+
+        function triggerWaveClear() {
+            if (isWaveClearing) return;
+            isWaveClearing = true;
+            enemyBaseHp = 0;
+            updateEnemyBaseHpUI();
+            createDamageText(canvas.width - 100, canvas.height/2, '勝利!', 'msg-heal');
+            
+            if (isBossWave) {
+                combatArea.style.backgroundColor = ''; 
+            }
+            
+            entities.forEach(e => {
+                if(e.team === 1 && e.state !== 'dead') {
+                    createParticleExplosion(e.x, e.y, '#95a5a6', 10);
+                    e.hp = 0;
+                    e.state = 'dead';
+                }
+            });
+            
+            addMana(10); // 過關獲得 10 顆魔石
+            
+            setTimeout(() => {
+                if(gameState === 'PLAYING') {
+                    gameState = 'UPGRADE'; 
+                    showUpgradeScreen();
+                }
+            }, 2000);
+        }
+        
+        function showUpgradeScreen() {
+            upgradeScreen.classList.remove('hidden');
+            upgradeChoicesContainer.innerHTML = '';
+            
+            const classKeys = getAvailableClassKeys(wave);
+            const choices = [];
+            
+            for(let i=0; i<3; i++) {
+                let randomClassKey = classKeys[Math.floor(Math.random() * classKeys.length)];
+                let cls = CLASSES[randomClassKey];
+                let upgradeType = UPGRADE_TYPES[Math.floor(Math.random() * UPGRADE_TYPES.length)];
+                
+                if (upgradeType.stat === 'cost' && cls.cost <= (upgradeType.minLimit || 1)) {
+                    upgradeType = UPGRADE_TYPES.find(u => u.stat === 'dmg');
+                }
+                
+                let val = upgradeType.generateVal(cls[upgradeType.stat]);
+                
+                choices.push({
+                    classKey: randomClassKey,
+                    clsName: cls.name,
+                    clsColor: cls.color,
+                    iconStyle: cls.iconStyle,
+                    stat: upgradeType.stat,
+                    statName: upgradeType.name,
+                    val: val,
+                    prefix: upgradeType.prefix,
+                    suffix: upgradeType.suffix
+                });
+            }
+            
+            choices.forEach(choice => {
+                const card = document.createElement('div');
+                card.className = 'upgrade-card';
+                card.onclick = () => applyUpgradeAndNextWave(choice);
+                
+                let iconHtml = `<div class="summon-icon" style="background-color:${choice.clsColor}; margin:0;"></div>`;
+                if(choice.iconStyle === 'shield') iconHtml = `<div class="summon-icon" style="background-color:transparent; border-bottom: 25px solid ${choice.clsColor}; border-left: 18px solid transparent; border-right: 18px solid transparent; margin:0;"></div>`;
+                if(choice.iconStyle === 'triangle') iconHtml = `<div class="summon-icon" style="background-color:transparent; border-bottom: 35px solid ${choice.clsColor}; border-left: 18px solid transparent; border-right: 18px solid transparent; margin:0;"></div>`;
+                if(choice.iconStyle === 'circle') iconHtml = `<div class="summon-icon" style="background-color:${choice.clsColor}; border-radius:50%; margin:0;"></div>`;
+                
+                card.innerHTML = `
+                    <div class="upgrade-icon-wrapper">
+                        ${iconHtml}
+                    </div>
+                    <div class="upgrade-title">${choice.clsName} 強化</div>
+                    <div class="upgrade-desc">
+                        ${choice.statName}<br>
+                        <span class="stat-highlight">${choice.prefix}${choice.val}${choice.suffix}</span>
+                    </div>
+                `;
+                
+                upgradeChoicesContainer.appendChild(card);
+            });
+        }
+        
+        function applyUpgradeAndNextWave(choice) {
+            CLASSES[choice.classKey][choice.stat] += choice.val;
+            
+            if(choice.stat === 'atkSpeed' && CLASSES[choice.classKey].atkSpeed < 200) {
+                CLASSES[choice.classKey].atkSpeed = 200; 
+            }
+            
+            upgradeScreen.classList.add('hidden');
+            initSummonButtons();
+            
+            entities = []; 
+            particles = []; 
+            
+            wave++;
+            gameState = 'PLAYING';
+            startWave();
+            
+            // Refocus input
+            setTimeout(() => {
+                const answerInput = document.getElementById('answer-input');
+                if (answerInput) answerInput.focus();
+            }, 100);
+        }
+
+        function spawnBoss() {
+            let baseBossConfig = BOSS_TYPES[0];
+            let bossScale = 1 + Math.max(0, wave - 3) * 0.4; // 調整倍率為從第3波開始
+            
+            let currentBossConfig = {
+                ...baseBossConfig,
+                hp: baseBossConfig.hp * bossScale,
+                dmg: baseBossConfig.dmg * (1 + (bossScale-1)*0.5),
+                name: baseBossConfig.name + (wave > 3 ? ` Mk.${wave - 2}` : '')
+            };
+            
+            // 修正 Boss 的 Y 軸：讓腳底與小怪齊平
+            // 普通單位 size:1 高度為 40，中心在 Y，腳底在 Y + 20。所以基準腳底 = Y + 20
+            const groundFeetY = (canvas.height * 0.75) + 20;
+            const bossHeight = 40 * currentBossConfig.size;
+            const bossY = groundFeetY - (bossHeight / 2);
+            
+            currentBoss = new Entity(canvas.width - 150, bossY, 1, currentBossConfig);
+            entities.push(currentBoss);
+            
+            updateBossUI();
+            
+            canvas.style.transform = 'translate(5px, 5px)';
+            setTimeout(() => { canvas.style.transform = 'translate(-5px, -5px)'; }, 50);
+            setTimeout(() => { canvas.style.transform = 'translate(5px, -5px)'; }, 100);
+            setTimeout(() => { canvas.style.transform = 'translate(0, 0)'; }, 150);
+        }
+        
+        function updateEnemyBaseHpUI() {
+            enemyBaseHpDisplay.innerText = Math.max(0, Math.ceil(enemyBaseHp));
+            if (enemyBaseHp < enemyBaseMaxHp * 0.3) {
+                enemyBaseHpDisplay.style.color = '#e74c3c';
+            } else {
+                enemyBaseHpDisplay.style.color = 'var(--health-red)';
+            }
+        }
+
+        function spawnEnemyUpdate(deltaTime) {
+            if (isWaveClearing) return;
+
+            if (isBossWave && bossTriggered) {
+                return; 
+            }
+            
+            spawnTimer -= deltaTime;
+            if (spawnTimer <= 0) {
+                spawnEnemy();
+                
+                let baseDelay = Math.max(1000, 3500 - (wave * 150));
+                spawnTimer = baseDelay + Math.random() * 1000;
+            }
+        }
+
+        function spawnEnemy() {
+            let typeIndex = 0;
+            let rand = Math.random();
+            if (wave > 2 && rand > 0.6) typeIndex = 1;
+            if (wave > 4 && rand > 0.85) typeIndex = 2;
+            
+            const enemyConfig = ENEMY_TYPES[typeIndex];
+            
+            let spawnY = (canvas.height * 0.75) + (Math.random() * 10 - 5);
+            let enemy = new Entity(canvas.width - 50, spawnY, 1, enemyConfig);
+            entities.push(enemy);
+        }
+
+        function updateBaseHpUI() {
+            baseHpDisplay.innerText = Math.max(0, Math.ceil(baseHp));
+            if (baseHp < baseMaxHp * 0.3) {
+                baseHpDisplay.style.color = '#e74c3c';
+            } else {
+                baseHpDisplay.style.color = 'var(--health-green)';
+            }
+        }
+
+        function startGame() {
+            resizeCanvas();
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            upgradeScreen.classList.add('hidden');
+            bossHpBarContainer.style.display = 'none';
+            bossWarning.classList.remove('show');
+            combatArea.style.backgroundColor = '';
+            
+            CLASSES = JSON.parse(JSON.stringify(INITIAL_CLASSES));
+            
+            document.querySelectorAll('.combat-msg').forEach(el => el.remove());
+
+            gameState = 'PLAYING';
+            wave = 1;
+            score = 0;
+            mana = 4; // 初始給予約 4 顆魔石 (足夠召喚兩隻劍士)
+            baseHp = baseMaxHp;
+            
+            enemyBaseMaxHp = 500;
+            enemyBaseHp = enemyBaseMaxHp;
+            isWaveClearing = false;
+
+            entities = [];
+            particles = [];
+            spawnTimer = 1000;
+            isBossWave = false;
+            currentBoss = null;
+            bossTriggered = false;
+            waveTimer = 0;
+
+            initSummonButtons();
+            updateBaseHpUI();
+            updateEnemyBaseHpUI();
+            updateManaUI();
+            generateQuestion();
+            startWave();
+            
+            lastTime = performance.now();
+            if(!animationId) loop(lastTime);
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            endStats.innerText = `你守住了 ${wave - 1} 波\n總共答對 ${score} 題！`;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function loop(timestamp) {
+            let deltaTime = timestamp - lastTime;
+            if(deltaTime > 100) deltaTime = 100; 
+            lastTime = timestamp;
+
+            update(deltaTime);
+            draw();
+
+            animationId = requestAnimationFrame(loop);
+        }
+
+        function update(deltaTime) {
+            if (gameState !== 'PLAYING') return;
+
+            if (lightWaveEffect > 0) {
+                lightWaveEffect -= deltaTime;
+            }
+
+            waveTimer += deltaTime;
+
+            if (isBossWave && !bossTriggered && !isWaveClearing) {
+                if (waveTimer > 20000 || enemyBaseHp < (enemyBaseMaxHp * 0.5)) {
+                    bossTriggered = true;
+                    triggerBossArrival();
+                }
+            }
+
+            spawnEnemyUpdate(deltaTime);
+
+            entities.forEach(e => e.update(deltaTime));
+            
+            if(Math.random() < 0.01) {
+                entities = entities.filter(e => e.state !== 'dead');
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= deltaTime * 0.002; 
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製守護光波的黃色閃光
+            if (lightWaveEffect > 0) {
+                ctx.fillStyle = `rgba(255, 255, 150, ${(lightWaveEffect/1000) * 0.8})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            const groundY = canvas.height * 0.75;
+
+            ctx.fillStyle = '#81C784'; 
+            ctx.fillRect(0, groundY + 10, canvas.width, 15);
+            ctx.fillStyle = '#A1887F'; 
+            ctx.fillRect(0, groundY + 25, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgba(41, 182, 246, 0.15)';
+            ctx.fillRect(0, 0, 100, canvas.height);
+
+            ctx.fillStyle = '#4FC3F7';
+            ctx.fillRect(10, groundY - 100, 80, 110);
+            ctx.fillStyle = '#0288D1';
+            ctx.fillRect(0, groundY - 140, 40, 150);
+            ctx.fillStyle = '#B3E5FC';
+            ctx.beginPath();
+            ctx.arc(50, groundY - 50, 20, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(239, 83, 80, 0.15)';
+            ctx.fillRect(canvas.width - 100, 0, 100, canvas.height);
+
+            ctx.fillStyle = '#EF5350';
+            ctx.fillRect(canvas.width - 90, groundY - 100, 80, 110);
+            ctx.fillStyle = '#C62828';
+            ctx.fillRect(canvas.width - 40, groundY - 140, 40, 150);
+            ctx.fillStyle = '#FFCDD2';
+            ctx.beginPath();
+            ctx.arc(canvas.width - 50, groundY - 50, 20, 0, Math.PI*2);
+            ctx.fill();
+
+            let drawList = entities.filter(e => e.state !== 'dead').sort((a, b) => a.y - b.y);
+
+            drawList.forEach(e => e.draw(ctx));
+
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Initial setup
+        fetchQuestionsFromGAS(); 
+        initSummonButtons();
+        resizeCanvas();
+    </script>
+</body>
+</html>
